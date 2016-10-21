@@ -5,65 +5,83 @@ matchIV contains a set of R functions to do matching-based IV analysis with a si
 
 To load these functions into R, run the following commands
 ```R
-source("https://raw.githubusercontent.com/hyunseungkang/invalidIV/master/TSHT.R")
+source("https://raw.githubusercontent.com/hyunseungkang/matchIV/master/effectRatio.r")
 ```
 
 ## Examples
 The code example.r has additional working examples.
 
 ```R
-### Obtain the two-stage hard thresholding (TSHT) code from Github ###	
+### Obtain effectRatio code from Github ###	
 source("https://raw.githubusercontent.com/hyunseungkang/matchIV/master/effectRatio.r")
 
-### R Packages to Load ###
-# The AER and MASS packages are only needed to run the working example.
-library(AER)
-library(MASS)
+##### Example Run #####
+### Generate simulated data ###
 
-### Working Example ###
-### n = 500, pz = 10 IVs (s = 3 invalid)
-# Y: n by 1 vector of outcomes (must be continuous)
-# D: n by 1 vector of treatments (continuous or discrete)
-# Z: n by pz vector of instruments (continuous or discrete)
-# beta:	  true treatment effect (set at 1)
+### Simulated data contains n=1000 individuals, 
+### the response (denoted as R), the exposure
+### (denoted as D), the instrument (denoted as
+###  Z), and the covariates (denoted as X)
 
-# Create data #
-library(MASS)
-n = 500; L = 10; s = 3
-alpha = c(rep(3,s),rep(0,L-s)); beta = 1; gamma = c(rep(1,L))
-epsilonSigma = matrix(c(1,0.8,0.8,1),2,2)
-Z = matrix(rnorm(n*L),n,L)
+### Simulated Data Characteristics
+### R is continuous (e.g. height)
+### D is continuous (e.g. amount of malaria parasite in plasma)
+### Z is binary (1/0 e.g. Sickle cell trait status)
+### X1 is a continuous variable (e.g. birthweight),
+### X2 is a binary variable (1/0, e.g. sex)
+### NOTE1: our method can handle continuous, discrete, binary R,D,Xs, 
+###       and many covariates. Our method only
+###       requires that Z is binary (1/0) and non-missing.
+### NOTE2: If some values of Xs are missing 
+###        (e.g. contains NAs), then
+###        you must provide a "cleaned" X
+###        without NAs, depending on how 
+###        you want to take care of missing
+###        values (e.g. imputation, MCAR, MAR, etc.)    
+### NOTE3: If R or D are missing, then you must provide a 
+###        cleaned R and D without NAs.
 
-epsilon = mvrnorm(n,rep(0,2),epsilonSigma)
-D = Z %*% gamma + epsilon[,1]
-Y = Z %*% alpha + D * beta + epsilon[,2]
+set.seed(1) #Random number generator seed. Change it as you please!
+n = 1000
+Z = runif(n) < 0.5
+X1 = rnorm(n,rep(c(0,1),n/2))
+X2 = rep(c(0,1),n/2)
+X = cbind(X1,X2)
 
-### Oracle Two-Stage Least Squares Estimator ###
-# This oracle knows exactly which IVs are invalid
-# and should perform very well,	  with the point estimate
-# associated with D close to 1 and the 95% confidence
-# interval covering 1
+# Generate R and D
+# Note that R and D are non-linear functions of X.
+# -3 is the true value of the causal effect of D on R in this example
+# Our point estimator should be close to -3 and our confidence interval
+# should have the desired level of coverage
+D = -1 + 0.2 * Z + X1 - 2*X1^2 - 2 * X2 + rnorm(n)
+R = 2 - 3 * D + X1 - 2*X1^2 - 2 * X2 + rnorm(n)
 
-summary(ivreg(Y ~ D + Z[,1:s] - 1 | Z - 1))
-confint(ivreg(Y ~ D + Z[,1:s] - 1 | Z - 1))[1,]
+
+### Run our method (automatically matches and estimateds Lambda)
+estLambda(Z,R,D,X)
+
+### Run 2SLS
+est2SLS(Z,R,D,X)
+
+### EXPECTED RESULT: 
+###         In most cases, you will notice that our method (estLambda)'s
+###         point estimate will be closer to -3. Furthermore, our confidence
+###         interval should have the desired 95% level of coverage. 
+###         In contrast, 2SLS (est2SLS) will be off from -3 most of the 
+###         time and its confidence interval will not have the desired 
+###         95% level of coverage.
 
 
-### Our TSHT Estimator ###
-# Our estimator	does not assume	which IVs are invalid
-# a priori. It should perform as well as the the oracle
-# above	as sample size increases.
-
-# Output is a list that includes
-# beta: point estimate of the treatment effect
-# se: standard error of the beta
-# ci: 1 - alpha confidence interval for beta
-# V: estimated set of valid IVs
-# S: estimated set of relevant IVs
- 
-TSHT.ldim(Y,D,Z)
+#### Some other functions
+### Match analysis
+fullmatchvec = matching(Z,X) #full-match individuals
+balanceCheck(Z,X,fullmatchvec) #checks balance of covariates
 ```
 
 ## References 
-Guo, Z., Kang, H., Cai, T. T., and Small, D. S. (2016). <a href="http://arxiv.org/abs/1603.05224">Confidence Interval for Causal Effects with Invalid Instruments using Two-Stage Hard Thresholding.</a> Technical Report.
+Kang, H., Peck, L., Keele, L. (2016). <a href="http://arxiv.org/abs/1606.04146">A Comparison of Inferential Techniques for Instrumental Variables Methods.</a> Technical Report.
 
-Kang, H., Cai, T. T., Small, D. S. (2016). <a href="http://arxiv.org/abs/1504.03718">A Simple and Robust Confidence Interval for Causal Effects with Possibly Invalid Instruments.</a> Technical Report.
+Kang, H. (2016). <a href="http://journals.lww.com/epidem/Citation/publishahead/Matched_Instrumental_Variables___A_Possible.99005.aspx">Commentary: Matched Instrumental Variables: A Possible Solution to Severe Confounding in Matched Observational Studies?</a> <i> Epidemiology</i>,27, 624-632.
+
+Kang, H., Kreuels, B., May, J., Small, D. S. (2016). <a href="https://projecteuclid.org/euclid.aoas/1458909919">Full Matching Approach to Instrumental Variables Estimation with Application to the Effect of Malaria on Stunting.</a> <i> Annals of Applied Statistics</i>,10,335-364.
+

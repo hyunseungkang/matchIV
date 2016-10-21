@@ -1,4 +1,5 @@
-source()
+### Obtain effectRatio code from GitHub ###
+source("https://raw.githubusercontent.com/hyunseungkang/matchIV/master/effectRatio.r")
 
 ##### Example Run #####
 ### Generate simulated data ###
